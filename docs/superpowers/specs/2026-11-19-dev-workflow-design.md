@@ -1,7 +1,7 @@
 # Quy trình phát triển Idol Card Maker: Development → Testing → Hoàn thiện
 
 - **Ngày:** 2026-11-19
-- **Trạng thái:** Bản nháp, chờ duyệt
+- **Trạng thái:** Đã duyệt (2026-11-19)
 - **Sản phẩm:** xem `docs/plans/2026-11-17-idol-card-maker-design.md` (gọi tắt là *tài liệu sản phẩm*)
 - **Ngoài phạm vi:** deployment production (sẽ thiết kế sau)
 
