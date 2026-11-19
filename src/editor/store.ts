@@ -58,17 +58,30 @@ function cancelSaveTimer() {
   }
 }
 
-export function flushSave(): void {
+function writeNow(): boolean {
   cancelSaveTimer()
   try {
     localStorage.setItem(
       STORAGE_KEY,
       JSON.stringify({ version: 1, design: useEditorStore.getState().design }),
     )
-  } catch {
-    // đầy bộ nhớ / bị chặn: bỏ qua, không làm hỏng editor
+  } catch (err) {
+    // đầy bộ nhớ / bị chặn: giữ 'pending' để UI không báo "đã lưu" sai
+    console.warn('Không lưu được thiết kế vào localStorage', err)
+    return false
   }
   useEditorStore.setState({ saveState: 'saved' })
+  return true
+}
+
+/** Ghi ngay (không điều kiện). */
+export function flushSave(): void {
+  writeNow()
+}
+
+/** Chỉ ghi khi có thay đổi chưa lưu — tab cũ không đụng tới sẽ không đè dữ liệu tab khác. */
+function flushIfPending(): void {
+  if (saveTimer !== undefined || useEditorStore.getState().saveState === 'pending') writeNow()
 }
 
 function scheduleSave() {
@@ -214,5 +227,5 @@ export function resetEditorStoreForTest(): void {
 }
 
 if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
-  window.addEventListener('pagehide', flushSave)
+  window.addEventListener('pagehide', flushIfPending)
 }

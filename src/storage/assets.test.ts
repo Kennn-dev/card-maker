@@ -55,6 +55,29 @@ describe('assets', () => {
     expect(revoked).toEqual([urlA])
   })
 
+  it('concurrent getImageUrl calls share one object URL', async () => {
+    const id = await putImage(new Blob(['x']))
+    let created = 0
+    let n = 0
+    URL.createObjectURL = () => {
+      created++
+      return `blob:conc/${n++}`
+    }
+    const [u1, u2] = await Promise.all([getImageUrl(id), getImageUrl(id)])
+    expect(u1).toBe(u2)
+    expect(created).toBe(1)
+  })
+
+  it('getImageUrl in flight during pruneAssets does not re-cache a deleted asset', async () => {
+    const id = await putImage(new Blob(['x']))
+    const inFlight = getImageUrl(id)
+    await pruneAssets(new Set())
+    const url = await inFlight
+    // Either the read lost the race (no URL) or its URL was created before the prune and revoked by it.
+    if (url) expect(revoked).toContain(url)
+    expect(await getImageUrl(id)).toBeUndefined()
+  })
+
   it('usedAssetIds collects ids from both sides', () => {
     const d: CardDesign = structuredClone(loadPresetDesign('photocard-basic'))
     d.front.layers.push(img('1', 'a'), img('2'))

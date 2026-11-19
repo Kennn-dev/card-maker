@@ -32,6 +32,25 @@ describe('isCardDesign', () => {
     expect(isCardDesign({ version: 2, front: { layers: [] }, back: { layers: [] } })).toBe(false)
     expect(isCardDesign(loadPresetDesign('photocard-basic'))).toBe(true)
   })
+  it('rejects shallow or incomplete designs', () => {
+    expect(isCardDesign({ version: 1, front: { layers: [] }, back: { layers: [] } })).toBe(false)
+    const noProps = loadPresetDesign('photocard-basic') as unknown as { front: { layers: Record<string, unknown>[] } }
+    delete noProps.front.layers[0].props
+    expect(isCardDesign(noProps)).toBe(false)
+    const noId = loadPresetDesign('photocard-basic') as unknown as { front: { layers: Record<string, unknown>[] } }
+    delete noId.front.layers[0].id
+    expect(isCardDesign(noId)).toBe(false)
+    const noPreset = loadPresetDesign('photocard-basic') as unknown as Record<string, unknown>
+    delete noPreset.presetId
+    expect(isCardDesign(noPreset)).toBe(false)
+    const noBg = loadPresetDesign('photocard-basic') as unknown as { back: Record<string, unknown> }
+    delete noBg.back.background
+    expect(isCardDesign(noBg)).toBe(false)
+    const badText = loadPresetDesign('photocard-basic') as unknown as { back: { layers: { props: { text: unknown } }[] } }
+    badText.back.layers[0].props.text = 5
+    expect(isCardDesign(badText)).toBe(false)
+    expect(isCardDesign(loadPresetDesign('polaroid-basic'))).toBe(true)
+  })
   it('rejects layers with bad type or non-finite numbers', () => {
     const d = loadPresetDesign('photocard-basic')
     d.front.layers[0].x = Number.NaN

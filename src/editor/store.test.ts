@@ -162,6 +162,27 @@ describe('autosave', () => {
     expect(s().saveState).toBe('saved')
   })
 
+  it('pagehide with no pending edits leaves storage untouched', () => {
+    localStorage.setItem(STORAGE_KEY, 'from-another-tab')
+    window.dispatchEvent(new Event('pagehide'))
+    expect(localStorage.getItem(STORAGE_KEY)).toBe('from-another-tab')
+  })
+
+  it('saveState stays pending when the write fails', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('quota')
+    })
+    s().addLayer(createTextLayer())
+    vi.advanceTimersByTime(1000)
+    expect(s().saveState).toBe('pending')
+    expect(warn).toHaveBeenCalled()
+    setItem.mockRestore()
+    window.dispatchEvent(new Event('pagehide')) // retries because still pending
+    expect(s().saveState).toBe('saved')
+    warn.mockRestore()
+  })
+
   it('pagehide flushes the save', () => {
     s().addLayer(createTextLayer())
     window.dispatchEvent(new Event('pagehide'))
