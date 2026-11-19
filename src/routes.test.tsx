@@ -1,6 +1,9 @@
 import { screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { renderRoute } from '@/test/renderRoute'
+
+// Konva cần canvas thật: jsdom không import nó, canvas được test bằng Playwright.
+vi.mock('@/editor/canvas/CardCanvas', () => ({ CardCanvas: () => null }))
 
 describe('routes', () => {
   it('landing shows title and CTA', () => {
