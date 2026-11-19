@@ -17,3 +17,4 @@ Luôn đọc: tài liệu sản phẩm `docs/plans/2026-11-17-idol-card-maker-de
 ## Kiểm tra
 - Mọi thay đổi phải qua `npm run check` xanh (typecheck, unit test, build, E2E) trước khi commit.
 - E2E (Playwright) dùng Google Chrome cài sẵn trên máy (`channel: 'chrome'`), không tải trình duyệt riêng.
+- Yêu cầu Node `^22.22.2 || >=24.15.0` (khai báo trong `engines` của package.json).

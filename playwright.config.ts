@@ -12,7 +12,7 @@ export default defineConfig({
   },
   projects: [
     { name: 'desktop', use: { ...devices['Desktop Chrome'], channel: 'chrome' } },
-    { name: 'mobile', use: { ...devices['Pixel 7'], channel: 'chrome' } },
+    { name: 'mobile', use: { ...devices['Pixel 7'], viewport: { width: 390, height: 844 }, channel: 'chrome' } },
   ],
   webServer: {
     command: `npm run build && npm run preview -- --port ${PORT} --strictPort`,

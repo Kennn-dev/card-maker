@@ -16,6 +16,7 @@ test('direct load of /editor works', async ({ page }) => {
 
 test('landing has no horizontal scroll and CTA is in viewport', async ({ page }) => {
   await page.goto('/')
+  await expect(page.getByRole('heading', { level: 1, name: 'Idol Card Maker' })).toBeVisible()
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)
   expect(overflow).toBe(false)
   await expect(page.getByRole('link', { name: 'Bắt đầu thiết kế' })).toBeInViewport()
