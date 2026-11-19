@@ -1,12 +1,13 @@
 import { lazy, Suspense } from 'react'
 import type { RouteObject } from 'react-router'
+import { RouteError } from './components/RouteError'
 import LandingPage from './pages/LandingPage'
 import NotFoundPage from './pages/NotFoundPage'
 
 const EditorPage = lazy(() => import('./pages/EditorPage'))
 
 export const routes: RouteObject[] = [
-  { path: '/', element: <LandingPage /> },
+  { path: '/', element: <LandingPage />, errorElement: <RouteError /> },
   {
     path: '/editor',
     element: (
@@ -14,6 +15,7 @@ export const routes: RouteObject[] = [
         <EditorPage />
       </Suspense>
     ),
+    errorElement: <RouteError />,
   },
-  { path: '*', element: <NotFoundPage /> },
+  { path: '*', element: <NotFoundPage />, errorElement: <RouteError /> },
 ]

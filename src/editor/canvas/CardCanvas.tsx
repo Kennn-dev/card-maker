@@ -37,8 +37,16 @@ function useFontsEpoch(fonts: string[]): number {
   return epoch
 }
 
-/** Canvas Konva của mặt thẻ đang chọn. Không nhận props: đọc và ghi qua `useEditorStore`. */
-export function CardCanvas() {
+type CardCanvasProps = {
+  /** Bấm lần nữa vào ô ảnh trống đang được chọn: EditorPage mở hộp chọn file cho ô đó. */
+  onRequestImage?: (layerId: string) => void
+}
+
+/** Ngưỡng (px) để phân biệt bấm với kéo. */
+const CLICK_SLOP_PX = 4
+
+/** Canvas Konva của mặt thẻ đang chọn. Đọc và ghi qua `useEditorStore`. */
+export function CardCanvas({ onRequestImage }: CardCanvasProps = {}) {
   const wrapperRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<Konva.Group>(null)
   const trRef = useRef<Konva.Transformer>(null)
@@ -135,11 +143,33 @@ export function CardCanvas() {
     },
   }
 
+  // Lần bấm hiện tại bắt đầu trên layer nào, layer đó đã được chọn từ trước chưa.
+  const pressRef = useRef<{ id: string; wasSelected: boolean; x: number; y: number } | null>(null)
+
   const onStagePointerDown = (e: Konva.KonvaEventObject<PointerEvent>) => {
     const target = e.target
+    pressRef.current = null
     if (target.findAncestor('Transformer', true)) return // đang bấm handle
     const layerNode = target.findAncestor(`.${LAYER_NODE_NAME}`, true)
+    if (layerNode) {
+      pressRef.current = {
+        id: layerNode.id(),
+        wasSelected: layerNode.id() === selectedId,
+        x: e.evt.clientX,
+        y: e.evt.clientY,
+      }
+    }
     select(layerNode ? layerNode.id() : null)
+  }
+
+  // Mở hộp chọn file ở pointerup/click (có user activation trên cả chuột lẫn cảm ứng).
+  const onStagePointerClick = (e: Konva.KonvaEventObject<PointerEvent>) => {
+    const press = pressRef.current
+    pressRef.current = null
+    if (!onRequestImage || !press?.wasSelected) return
+    if (Math.hypot(e.evt.clientX - press.x, e.evt.clientY - press.y) > CLICK_SLOP_PX) return
+    const layer = findLayer(press.id)
+    if (layer?.type === 'image' && !layer.props.assetId) onRequestImage(layer.id)
   }
 
   const renderLayer = (stored: Layer) => {
@@ -162,7 +192,12 @@ export function CardCanvas() {
       style={{ background: CANVAS_COLORS.studio }}
     >
       {s > 0 && (
-        <Stage width={width} height={height} onPointerDown={onStagePointerDown}>
+        <Stage
+          width={width}
+          height={height}
+          onPointerDown={onStagePointerDown}
+          onPointerClick={onStagePointerClick}
+        >
           <KLayer>
             <Group
               key={fontEpoch}
