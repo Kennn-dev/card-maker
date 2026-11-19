@@ -20,7 +20,7 @@ Website giúp fan tự thiết kế **thẻ idol (photocard / stat card)**: bắ
 | 4 | File xuất ở MVP | PNG 2 mặt + file in 300 DPI có bleed; 3D chỉ để xem trên web (không GIF/video) |
 | 5 | Cách vẽ thẻ | **Canvas (Konva) để edit/xuất + CSS 3D để preview** |
 | 6 | Tài khoản | Không có. Nháp lưu trên trình duyệt, kèm xuất/nhập .json |
-| 7 | Giao diện | Tối giản, làm đẹp sau |
+| 7 | Giao diện | Tối giản theo phong cách Geist + shadcn/ui (mục 6) |
 | 8 | Thiết bị | Ưu tiên desktop; mobile dùng được ở mức cơ bản |
 
 ### Ngoài phạm vi MVP (YAGNI)
@@ -53,6 +53,7 @@ Tài khoản, backend, link chia sẻ, GIF/video, trang admin tạo preset, ch�
 | Lưu ảnh | IndexedDB qua `idb-keyval` |
 | Preview 3D | `HoloCard` tự viết (CSS custom properties) |
 | Routing | `react-router-dom` |
+| UI app | **shadcn/ui** + Tailwind CSS, theo phong cách **Geist** (xem mục 6) |
 | PDF (P2) | `jsPDF` |
 | Deploy | Site tĩnh: Vercel / Netlify / GitHub Pages |
 
@@ -269,7 +270,39 @@ MVP chỉ giữ 1 bản nháp; danh sách "Bản nháp gần đây" để P2.
 
 ---
 
-## 6. Việc còn mở
+## 6. UI style (chốt 2026-11-18)
+
+**Phong cách:** giống website Vercel, tức design system **Geist**: tối giản, nhiều khoảng trắng, đen trắng trung tính, viền mảnh 1px, bo góc nhỏ, gần như không đổ bóng, có dark mode.
+
+| Hạng mục | Chọn |
+|---|---|
+| Component | **shadcn/ui** (copy vào `src/components/ui`, chỉnh trực tiếp) |
+| Styling | Tailwind CSS (shadcn/ui cần) |
+| Font giao diện | Geist Sans / Geist Mono, tự host |
+| Icon | `lucide-react` (đi kèm shadcn/ui) |
+| Theme | Màu nền xám trung tính, light và dark mode qua CSS variables của shadcn |
+
+**Ánh xạ component sang tính năng:**
+
+| Tính năng | Component shadcn/ui |
+|---|---|
+| Tab Preset/Lớp, Mặt trước/Mặt sau, tab Xuất file | `Tabs` |
+| Menu "+ Thêm" | `DropdownMenu` |
+| Panel thuộc tính | `Input`, `Slider`, `Select`, `Switch` (spot holo), `Popover` (chọn màu) |
+| Chọn finish | `ToggleGroup` |
+| Hộp thoại Xuất file, xác nhận đổi preset | `Dialog`, `AlertDialog` |
+| Cảnh báo trước khi in | `Alert` |
+| Thông báo lưu/xuất xong | `Sonner` (toast) |
+| Gợi ý nút | `Tooltip` |
+| Mobile: panel Lớp/Thuộc tính | `Sheet` / `Drawer` |
+
+**Nguyên tắc:** giao diện app trung tính để **thẻ là thứ duy nhất có màu sắc nổi bật** trên màn hình.
+
+**Lưu ý:** font giao diện (Geist) tách riêng với font dùng trên thẻ (mục 2). Cần kiểm tra Geist hiển thị tiếng Việt có dấu đủ tốt không; nếu không thì dùng Be Vietnam Pro làm font giao diện.
+
+---
+
+## 7. Việc còn mở
 
 - Khảo sát thêm thị trường (Nhat) để chốt bộ preset và các phần customize đầu tiên.
 - Kiểm tra lại license của poke-holo.
