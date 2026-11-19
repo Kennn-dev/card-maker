@@ -4,14 +4,16 @@ test('CTA → editor → back to landing', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('link', { name: 'Bắt đầu thiết kế' }).click()
   await expect(page).toHaveURL(/\/editor$/)
-  await expect(page.getByRole('heading', { level: 1, name: 'Editor' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Hoàn tác' })).toBeVisible()
+  await expect(page.getByTestId('card-canvas')).toBeVisible()
   await page.goBack()
   await expect(page.getByRole('heading', { level: 1, name: 'Idol Card Maker' })).toBeVisible()
 })
 
 test('direct load of /editor works', async ({ page }) => {
   await page.goto('/editor')
-  await expect(page.getByRole('heading', { level: 1, name: 'Editor' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Hoàn tác' })).toBeVisible()
+  await expect(page.getByTestId('card-canvas')).toBeVisible()
 })
 
 test('landing has no horizontal scroll and CTA is in viewport', async ({ page }) => {
