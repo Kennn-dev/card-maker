@@ -39,8 +39,9 @@
 
 ## Tiêu chí nghiệm thu M1 (gửi Nhat đọc lướt trước khi code)
 
-- [ ] Chọn 1 trong 2 preset tạm (Photocard cơ bản, Polaroid cơ bản); đổi preset khi đã sửa thì có hỏi xác nhận.
-- [ ] Thêm chữ; sửa nội dung, cỡ chữ, màu ở panel bên phải.
+- [ ] Chọn 1 trong 2 mẫu tạm (Photocard cơ bản, Polaroid cơ bản) ở mục "Mẫu" của thanh trái; đổi mẫu khi đã sửa thì có hỏi xác nhận.
+- [ ] Bố cục: thẻ nổi giữa mặt bàn xám, thanh trái Mẫu · Chữ · Ảnh, trạng thái "Đã lưu" trên cùng, Mặt trước/Mặt sau ngay dưới thẻ.
+- [ ] Thêm chữ; sửa nội dung, cỡ chữ, màu ở thanh công cụ hiện ngay trên thẻ khi chọn chữ.
 - [ ] Thêm ảnh từ máy (cả ảnh chụp điện thoại dung lượng lớn); ô ảnh trống của preset bấm vào là thay được ảnh.
 - [ ] Kéo, đổi kích thước, xoay layer; hút vào tâm thẻ và mép safe zone. Kéo thả có "đã tay" không.
 - [ ] Thấy viền bleed (đỏ) và safe zone (nét đứt).
@@ -63,11 +64,11 @@ src/editor/store.ts        # useEditorStore (zustand, history, persist debounce)
 src/storage/assets.ts      # putImage, getImageUrl, pruneAssets
 src/storage/image.ts       # fitWithin, compressImage
 src/editor/canvas/CardCanvas.tsx · Guides.tsx · TextNode.tsx · ImageNode.tsx · useStageScale.ts
-src/editor/panels/PresetPanel.tsx · PropertiesPanel.tsx
-src/editor/EditorToolbar.tsx · useEditorShortcuts.ts
+src/editor/EditorTopBar.tsx · EditorRail.tsx · ContextToolbar.tsx · useEditorShortcuts.ts
+src/editor/drawers/PresetDrawer.tsx · TextDrawer.tsx · ImageDrawer.tsx
 src/pages/EditorPage.tsx   # bố cục 3 cột
 src/components/RouteError.tsx
-src/components/ui/tabs.tsx · alert-dialog.tsx · input.tsx · label.tsx · sonner.tsx
+src/components/ui/tabs.tsx · alert-dialog.tsx · input.tsx · label.tsx · sonner.tsx · sheet.tsx
 e2e/editor.spec.ts
 ```
 
@@ -152,6 +153,7 @@ e2e/editor.spec.ts
   type EditorState = {
     design: CardDesign; side: SideName; selectedId: string | null; dirty: boolean
     past: CardDesign[]; future: CardDesign[]
+    saveState: 'saved' | 'pending'                 // 'pending' từ lúc thay đổi tới khi ghi xong
     setSide(side: SideName): void
     select(id: string | null): void
     loadPreset(id: string): void                    // đẩy lịch sử, dirty=false
@@ -189,6 +191,7 @@ e2e/editor.spec.ts
   })
   it('restores a valid saved design on load', ...)
   it('setSide and select do not create history', ...)
+  it('saveState is pending after a change and saved after the write', ...)
   ```
 - [ ] **Step 2:** `npm run test -- src/editor/store.test.ts` → FAIL.
 - [ ] **Step 3:** Cài `zustand`; viết store (dùng `create` thuần + tự viết debounce lưu; không cần middleware `persist` nếu tự viết gọn hơn).
@@ -247,7 +250,8 @@ e2e/editor.spec.ts
 - Produces: `<CardCanvas />` (không props; đọc store). Thuộc tính `data-testid="card-canvas"` trên phần tử bọc ngoài; `data-px-per-mm` trên phần tử đó ghi tỉ lệ đang dùng (để E2E tính tọa độ).
   - `pxPerMm(containerW: number, containerH: number): number` — vừa khít vùng thẻ kèm bleed (61×91 mm) trong container, có lề 16 px.
   - Vẽ: nền màu của mặt hiện tại phủ cả bleed; layer theo thứ tự mảng; `hidden` bỏ qua. Text: `Konva.Text` với `fontSize = pt × 25.4/72` mm đổi px, `wrap` trong `w`. Image: có URL → vẽ kiểu **cover** (căn giữa, cắt phần thừa) trong khung; không có `assetId` hoặc URL `undefined` → ô xám chữ "Thêm ảnh".
-  - Guides (không bắt sự kiện): viền thành phẩm bo góc 3 mm, viền bleed đỏ (`#ef4444`), safe zone nét đứt.
+  - Guides (không bắt sự kiện): viền thành phẩm bo góc 3 mm, viền bleed đỏ (`#EF4444`), safe zone nét đứt `#A1A1A1`.
+  - Thẻ là vật thể nổi duy nhất: phần tử bọc canvas có nền "mặt bàn" `#F2F2F2`; thẻ (vùng thành phẩm) có bóng đổ nhẹ. Khung chọn và handle của `Transformer` màu `#0070F3`.
   - Click layer → `select(id)`; click nền/ngoài → `select(null)`. `Transformer` gắn vào layer đang chọn, `rotationSnaps: [0, 90, 180, 270]`, không cho layer `locked` kéo.
   - Đang kéo (`dragmove`): áp `snapBox` lên vị trí (đổi px↔mm). Kết thúc kéo/biến đổi (`dragend`, `transformend`) → một lần `updateLayer` với x, y, w, h (= kích thước × scale rồi reset scale về 1), rotation, tính bằng mm làm tròn 0.1.
 
@@ -273,16 +277,36 @@ e2e/editor.spec.ts
 ### Task 5: Trang editor (bố cục, preset, thêm/sửa layer, undo, phím tắt, lỗi route)
 
 **Files:**
-- Create: `src/editor/panels/PresetPanel.tsx`, `src/editor/panels/PropertiesPanel.tsx`, `src/editor/EditorToolbar.tsx`, `src/editor/useEditorShortcuts.ts`, `src/components/RouteError.tsx`, `src/components/ui/{tabs,alert-dialog,input,label,sonner}.tsx`
+- Create: `src/editor/EditorTopBar.tsx`, `src/editor/EditorRail.tsx`, `src/editor/drawers/{PresetDrawer,TextDrawer,ImageDrawer}.tsx`, `src/editor/ContextToolbar.tsx`, `src/editor/useEditorShortcuts.ts`, `src/components/RouteError.tsx`, `src/components/ui/{tabs,alert-dialog,input,label,sonner,sheet}.tsx`
+- Modify thêm: `src/editor/store.ts` (`saveState`)
 - Modify: `src/pages/EditorPage.tsx`, `src/routes.tsx` (errorElement), `src/main.tsx` (`<Toaster />`), `src/routes.test.tsx`, `e2e/editor.spec.ts`, `docs/backlog.md` (gạch mục `[M1]` đã làm)
 - Test: `src/routes.test.tsx`, `e2e/editor.spec.ts`
 
 **Interfaces:**
 - Consumes: store (Task 2), `PRESETS` (Task 1), `compressImage`/`putImage`/`pruneAssets`/`usedAssetIds`/`ImageDecodeError` (Task 3), `CardCanvas` (Task 4), `createTextLayer`/`createImageLayer` (Task 1).
-- Bố cục `EditorPage` (desktop ≥ 1024 px: 3 cột; hẹp hơn: xếp dọc canvas → toolbar → panel, chưa tối ưu):
-  - Trái: `PresetPanel` — danh sách nút theo `PRESETS` (tên preset). Bấm khi `dirty` → `AlertDialog` tiêu đề "Đổi preset?", mô tả "Thiết kế hiện tại sẽ bị thay thế. Bạn vẫn có thể hoàn tác.", nút "Đổi preset" / "Hủy". Không `dirty` → đổi ngay.
-  - Giữa: `Tabs` "Mặt trước" / "Mặt sau" (gọi `setSide`), `CardCanvas`, `EditorToolbar`: nút "Thêm chữ", "Thêm ảnh" (input file ẩn `accept="image/*"`), "Hoàn tác", "Làm lại" (disabled khi không còn bước), link "Trang chủ".
-  - Phải: `PropertiesPanel` cho layer đang chọn; không chọn → chữ "Chọn một lớp để chỉnh". Text: `Input` "Nội dung" (coalesce `text:<id>`), `Input type=number` "Cỡ chữ (pt)" 6–72, `Input type=color` "Màu", nút căn trái/giữa/phải. Image: nút "Thay ảnh". Mọi loại: nút "Xóa lớp".
+- Bố cục `EditorPage` (đã duyệt 2026-11-19; nguyên tắc: **tấm thẻ là vật thể duy nhất nổi bật**, mọi thứ khác xám, viền 1 px; chưa có cột phải ở M1 — cột phải dành cho preview 3D từ M3):
+  ```
+  desktop ≥1024px
+  ┌──────────────────────────────────────────────────────────────┐
+  │ Logo(→/)   ↶ Hoàn tác  ↷ Làm lại   "Đã lưu"/"Đang lưu…"       │ top bar 48px
+  ├────┬─────────────┬───────────────────────────────────────────┤
+  │rail│ ngăn kéo    │   [ContextToolbar khi có layer được chọn]  │
+  │Mẫu │ 240px       │            ┌─────────┐   mặt bàn #F2F2F2  │
+  │Chữ │ (đóng được) │            │  THẺ    │                    │
+  │Ảnh │             │            └─────────┘                    │
+  │64px│             │        ( Mặt trước | Mặt sau )            │
+  └────┴─────────────┴───────────────────────────────────────────┘
+  <768px: top bar · ContextToolbar · thẻ · (Trước|Sau) · tab bar đáy Mẫu/Chữ/Ảnh mở bottom sheet
+  ```
+  - **Top bar** (`EditorTopBar`): logo link "Idol Card Maker" → `/`; nút icon "Hoàn tác", "Làm lại" (có `aria-label`, disabled khi hết bước); trạng thái lưu "Đang lưu…" khi có thay đổi chưa ghi, "Đã lưu" sau khi ghi (store cần thêm `saveState: 'saved' | 'pending'`).
+  - **Rail trái** (`EditorRail`, 64 px): 3 nút icon + nhãn "Mẫu", "Chữ", "Ảnh" (`aria-pressed`); bấm mở ngăn kéo tương ứng, bấm lại đóng. Mặc định mở "Mẫu" khi chưa chỉnh gì.
+    - Ngăn **Mẫu** (`PresetDrawer`): danh sách nút theo `PRESETS` (tên preset). Bấm khi `dirty` → `AlertDialog` tiêu đề "Đổi mẫu?", mô tả "Thiết kế hiện tại sẽ bị thay thế. Bạn vẫn có thể hoàn tác.", nút "Đổi mẫu" / "Hủy". Không `dirty` → đổi ngay.
+    - Ngăn **Chữ** (`TextDrawer`): nút "Thêm chữ" → layer mới giữa thẻ, được chọn, focus vào ô "Nội dung" của ContextToolbar.
+    - Ngăn **Ảnh** (`ImageDrawer`): vùng thả ảnh + nút "Tải ảnh lên" (input file ẩn `accept="image/*"`); nếu đang chọn ô ảnh trống, ảnh vào ô đó.
+  - **ContextToolbar** (ngay trên thẻ, chỉ hiện khi có layer được chọn): Text: `Input` "Nội dung" (coalesce `text:<id>`), `Input type=number` "Cỡ chữ (pt)" 6–72, `Input type=color` "Màu", nhóm 3 nút căn trái/giữa/phải; Image: nút "Thay ảnh"; mọi loại: nút "Xóa lớp".
+  - **Chuyển mặt**: `Tabs` (kiểu segmented) "Mặt trước" / "Mặt sau" ngay dưới thẻ.
+  - **Mobile <768 px**: rail chuyển thành tab bar đáy cùng 3 mục; ngăn kéo thành bottom sheet (`Sheet`); mức cơ bản, tối ưu ở M5.
+  - Màu: nền `#FFFFFF`, mặt bàn `#F2F2F2`, viền `#EAEAEA`, chữ `#171717`/`#666666`; chữ thường đầu câu, nhãn nút nói đúng việc làm.
 - Thêm ảnh: `compressImage` → `putImage` → nếu đang chọn ô ảnh trống thì gán `assetId` vào ô đó, ngược lại `addLayer(createImageLayer({ props: { assetId } }))`. `ImageDecodeError` → toast "Không đọc được ảnh này", không thêm gì. Click vào ô "Thêm ảnh" trên canvas khi đang chọn nó → mở hộp chọn file (gắn ở EditorPage qua một callback, không trong Konva).
 - `useEditorShortcuts()` — Ctrl/Cmd+Z → undo, Ctrl/Cmd+Shift+Z và Ctrl+Y → redo, Delete/Backspace → xóa layer đang chọn; **bỏ qua** khi focus ở `input`, `textarea`, `select` hoặc `[contenteditable]`.
 - Mount editor: `pruneAssets(usedAssetIds(design))` một lần.
@@ -300,13 +324,15 @@ e2e/editor.spec.ts
   ```ts
   // e2e/editor.spec.ts
   test('add text, edit content, persists after reload', async ({ page }) => {
-    await page.getByRole('button', { name: 'Thêm chữ' }).click()
+    await page.getByRole('button', { name: 'Chữ' }).click(); await page.getByRole('button', { name: 'Thêm chữ' }).click()
+    await expect(page.getByLabel('Nội dung')).toBeFocused()
     await page.getByLabel('Nội dung').fill('Jennie')
+    await expect(page.getByText('Đã lưu')).toBeVisible()
     await page.waitForTimeout(1100); await page.reload()
     // localStorage design chứa layer text 'Jennie' ở mặt trước
   })
   test('typing in an input does not delete or undo layers', async ({ page }) => {
-    await page.getByRole('button', { name: 'Thêm chữ' }).click()
+    await page.getByRole('button', { name: 'Chữ' }).click(); await page.getByRole('button', { name: 'Thêm chữ' }).click()
     const input = page.getByLabel('Nội dung'); await input.fill('AB'); await input.press('Backspace'); await input.press('Control+z')
     await expect(input).toHaveValue(/A/)  // ô vẫn còn, layer vẫn được chọn
     await expect(page.getByRole('button', { name: 'Xóa lớp' })).toBeVisible()
@@ -324,13 +350,14 @@ e2e/editor.spec.ts
     // upload ảnh → chờ lưu → xóa DB 'icm-assets' → reload → không có lỗi console, canvas hiển thị
   })
   test('switching preset when dirty asks for confirmation', async ({ page }) => {
-    await page.getByRole('button', { name: 'Thêm chữ' }).click()
-    await page.getByRole('button', { name: 'Polaroid cơ bản' }).click()
+    await page.getByRole('button', { name: 'Chữ' }).click(); await page.getByRole('button', { name: 'Thêm chữ' }).click()
+    await page.getByRole('button', { name: 'Mẫu' }).click(); await page.getByRole('button', { name: 'Polaroid cơ bản' }).click()
     await expect(page.getByRole('alertdialog')).toBeVisible()
     await page.getByRole('button', { name: 'Hủy' }).click()   // vẫn là photocard-basic
   })
   test('front and back keep separate layers', ...)   // thêm chữ ở Mặt sau → mặt trước không đổi số layer
-  test('undo/redo buttons', ...)
+  test('undo/redo buttons', ...)   // nút icon có aria-label "Hoàn tác" / "Làm lại"
+  test('mobile shows bottom tab bar with Mẫu/Chữ/Ảnh', ...)   // chỉ project mobile
   ```
 - [ ] **Step 2:** Chạy test → FAIL.
 - [ ] **Step 3:** Viết các component shadcn bằng tay theo chuẩn shadcn/ui (new-york, Tailwind v4; Tabs/AlertDialog dùng Radix tương ứng; Sonner dùng gói `sonner`), rồi viết panel, toolbar, phím tắt, `RouteError`, bố cục `EditorPage`. Cập nhật `docs/backlog.md`: đánh dấu mục `[M1]` là đã làm.
