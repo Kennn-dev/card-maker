@@ -259,3 +259,9 @@ export function resetEditorStoreForTest(): void {
 if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
   window.addEventListener('pagehide', flushIfPending)
 }
+if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
+  // Mobile thường không bắn pagehide khi chuyển app/tắt tab: ghi ngay khi trang bị ẩn.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') flushIfPending()
+  })
+}

@@ -4,7 +4,7 @@ import { Group, Layer as KLayer, Rect, Stage, Transformer } from 'react-konva'
 import { CARD, type Layer } from '@/model/card'
 import { snapBox } from '@/model/snap'
 import { useEditorStore } from '@/editor/store'
-import { roundMm } from './geometry'
+import { clampToBleed, roundMm } from './geometry'
 import { Guides } from './Guides'
 import { ImageNode } from './ImageNode'
 import { LAYER_NODE_NAME, type LayerNodeEvents } from './nodeProps'
@@ -109,7 +109,8 @@ export function CardCanvas({ onRequestImage }: CardCanvasProps = {}) {
       // Hộp bao theo trục (đã tính xoay) trong hệ tọa độ thẻ, đổi px → mm để snap.
       const r = node.getClientRect({ relativeTo: content, skipShadow: true, skipStroke: true })
       const box = { x: r.x / s, y: r.y / s, w: r.width / s, h: r.height / s }
-      const snapped = snapBox(box)
+      // Snap rồi giữ ít nhất 2 mm của hộp trong vùng bleed để layer không lạc ra ngoài (không chọn lại được).
+      const snapped = clampToBleed({ ...box, ...snapBox(box) })
       node.position({
         x: node.x() + (snapped.x - box.x) * s,
         y: node.y() + (snapped.y - box.y) * s,

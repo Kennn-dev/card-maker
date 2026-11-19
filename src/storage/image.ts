@@ -15,7 +15,8 @@ export function fitWithin(w: number, h: number, maxEdge = 1500): { w: number; h:
 export async function compressImage(file: Blob, maxEdge = 1500): Promise<Blob> {
   let bitmap: ImageBitmap
   try {
-    bitmap = await createImageBitmap(file)
+    // Xoay theo EXIF (ảnh chụp điện thoại) trước khi nén.
+    bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' })
   } catch {
     throw new ImageDecodeError()
   }

@@ -4,6 +4,8 @@ import { renderRoute } from '@/test/renderRoute'
 
 // Konva cần canvas thật: jsdom không import nó, canvas được test bằng Playwright.
 vi.mock('@/editor/canvas/CardCanvas', () => ({ CardCanvas: () => null }))
+// Konva không chạy trong jsdom: thay phép đo chữ bằng bản giả.
+vi.mock('@/editor/canvas/measureText', () => ({ fitTextHeight: (l: { h: number }) => l.h }))
 
 describe('routes', () => {
   it('landing shows title and CTA', () => {

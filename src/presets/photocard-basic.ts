@@ -16,7 +16,7 @@ export const photocardBasic: CardDesign = {
         y: 70,
         w: 40,
         h: 10,
-        props: { text: 'Tên idol', font: 'Geist', size: 16, color: '#ffffff', align: 'center' },
+        props: { text: 'Tên idol', font: 'Geist', size: 16, color: '#171717', align: 'center' },
       }),
     ],
   },

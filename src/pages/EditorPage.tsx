@@ -96,6 +96,19 @@ export default function EditorPage() {
     void addImageFile(file, targetId ?? selectedEmptyImageId())
   }
 
+  // Thả file ở chỗ không có vùng nhận riêng thì trình duyệt mở file và rời editor: chặn ở cấp trang.
+  useEffect(() => {
+    const block = (e: DragEvent) => {
+      if (e.dataTransfer?.types.includes('Files')) e.preventDefault()
+    }
+    window.addEventListener('dragover', block)
+    window.addEventListener('drop', block)
+    return () => {
+      window.removeEventListener('dragover', block)
+      window.removeEventListener('drop', block)
+    }
+  }, [])
+
   const toggleDrawer = (id: DrawerId) => setDrawer((cur) => (cur === id ? null : id))
 
   const drawerContent: Record<DrawerId, ReactNode> = {
@@ -143,7 +156,17 @@ export default function EditorPage() {
           </aside>
         )}
 
-        <main className="flex min-w-0 flex-1 flex-col bg-[#F2F2F2]">
+        <main
+          className="flex min-w-0 flex-1 flex-col bg-[#F2F2F2]"
+          onDragOver={(e) => {
+            if (e.dataTransfer.types.includes('Files')) e.preventDefault()
+          }}
+          onDrop={(e) => {
+            if (!e.dataTransfer.types.includes('Files')) return
+            e.preventDefault()
+            onFiles(e.dataTransfer.files, null)
+          }}
+        >
           {/* Dải cố định: thanh thuộc tính hiện/ẩn không làm thẻ nhảy chỗ. */}
           <div className="flex h-14 shrink-0 items-center justify-center px-3">
             <ContextToolbar

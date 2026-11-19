@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import type { TextLayer, TextProps } from '@/model/card'
 import { cn } from '@/lib/utils'
+import { fitTextHeight } from './canvas/measureText'
 import { useEditorStore } from './store'
 
 export const FONT_SIZE = { min: 6, max: 72 } as const
@@ -41,7 +42,7 @@ export function ContextToolbar({ focusTextId, onFocused, onReplaceImage }: Props
       ) : (
         <Button type="button" variant="ghost" size="sm" onClick={() => onReplaceImage(layer.id)}>
           <ImageUp />
-          Thay ảnh
+          {layer.props.assetId ? 'Thay ảnh' : 'Thêm ảnh'}
         </Button>
       )}
       <div className="h-5 w-px shrink-0 bg-[#EAEAEA]" aria-hidden />
@@ -77,6 +78,12 @@ function TextControls({
   const id = layer.id
   const p = layer.props
 
+  /** Đổi thuộc tính chữ và nới chiều cao hộp (cùng một bước undo) để không dòng nào bị cắt. */
+  const updateText = (props: Partial<TextProps>, coalesce: string) => {
+    const h = fitTextHeight({ w: layer.w, h: layer.h, props: { ...p, ...props } })
+    updateLayer(id, h > layer.h ? { props, h } : { props }, { coalesce })
+  }
+
   useEffect(() => {
     if (!focus) return
     textRef.current?.focus()
@@ -93,7 +100,7 @@ function TextControls({
         id={`text-${id}`}
         ref={textRef}
         value={p.text}
-        onChange={(e) => updateLayer(id, { props: { text: e.target.value } }, { coalesce: `text:${id}` })}
+        onChange={(e) => updateText({ text: e.target.value }, `text:${id}`)}
         className="h-8 w-24 shrink-0 md:w-56"
       />
 
@@ -114,7 +121,7 @@ function TextControls({
             setSizeDraft(raw)
             const n = Number(raw)
             if (raw !== '' && Number.isFinite(n) && n >= FONT_SIZE.min && n <= FONT_SIZE.max) {
-              updateLayer(id, { props: { size: n } }, { coalesce: `size:${id}` })
+              updateText({ size: n }, `size:${id}`)
             }
           }}
           onBlur={() => setSizeDraft(null)}

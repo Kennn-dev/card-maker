@@ -181,6 +181,10 @@ test('add text, edit content, persists after reload', async ({ page }) => {
   const design = await readDesign(page)
   expect(design!.front.layers.map((l) => l.props.text)).toContain('Jennie')
   expect(design!.back.layers.map((l) => l.props.text)).not.toContain('Jennie')
+  // UI cũng khôi phục: chọn lại layer chữ (giữa thẻ, nằm trên ô ảnh) thì ô "Nội dung" có "Jennie"
+  const { at } = await cardToPage(page)
+  await page.mouse.click(at(CARD.w / 2, CARD.h / 2).x, at(CARD.w / 2, CARD.h / 2).y)
+  await expect(page.getByLabel('Nội dung')).toHaveValue('Jennie')
 })
 
 test('typing in an input does not delete or undo layers', async ({ page }) => {
@@ -269,7 +273,7 @@ test('photo goes into the selected empty image slot', async ({ page }) => {
   const { at } = await cardToPage(page)
   // ô ảnh toàn thẻ của preset: bấm vào góc trên (không trúng chữ tên)
   await page.mouse.click(at(10, 10).x, at(10, 10).y)
-  await expect(page.getByRole('button', { name: 'Thay ảnh' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Thêm ảnh' })).toBeVisible()
   await uploadPhoto(page)
   await expect
     .poll(async () => {
@@ -282,7 +286,7 @@ test('photo goes into the selected empty image slot', async ({ page }) => {
 test('clicking a selected empty image slot opens the file chooser', async ({ page }) => {
   const { at } = await cardToPage(page)
   await page.mouse.click(at(10, 10).x, at(10, 10).y)
-  await expect(page.getByRole('button', { name: 'Thay ảnh' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Thêm ảnh' })).toBeVisible()
   const chooser = page.waitForEvent('filechooser')
   await page.mouse.click(at(10, 10).x, at(10, 10).y)
   await chooser
@@ -424,4 +428,80 @@ test('mobile shows bottom tab bar with Mẫu/Chữ/Ảnh', async ({ page }, test
   await expect(page.getByRole('button', { name: 'Tải ảnh lên' })).toBeVisible()
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)
   expect(overflow).toBe(false)
+})
+
+// ---------------------------------------------------------------------------
+// Sửa sau review cuối M1
+
+const ptToMm = (pt: number) => (pt * 25.4) / 72
+
+type SavedFullLayer = SavedLayer & { rotation: number; props: { text?: string; size?: number; assetId?: string } }
+
+async function savedLayer(page: Page, index: number): Promise<SavedFullLayer> {
+  const raw = await waitForSave(page)
+  return (JSON.parse(raw) as { design: { front: { layers: SavedFullLayer[] } } }).design.front.layers[index]
+}
+
+test('large multi-word text grows the box instead of being clipped', async ({ page }) => {
+  await addText(page)
+  await page.getByLabel('Cỡ chữ (pt)').fill('36')
+  await page.getByLabel('Nội dung').fill('Kim Jennie BLACKPINK')
+  await expect
+    .poll(async () => (await readDesign(page))?.front.layers[2]?.props.text)
+    .toBe('Kim Jennie BLACKPINK')
+  const added = await savedLayer(page, 2)
+  for (const word of ['Kim', 'Jennie', 'BLACKPINK']) expect(added.props.text).toContain(word)
+  expect(added.h).toBeGreaterThan(10)
+  // 36 pt trong hộp 40 mm phải xuống ít nhất hai dòng
+  expect(added.h).toBeGreaterThanOrEqual(2 * ptToMm(36))
+})
+
+test('dragging the right-middle handle widens a text box without scaling the font', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop', 'chỉ desktop')
+  const { at } = await cardToPage(page)
+  await page.mouse.click(at(nameCenter.x, nameCenter.y).x, at(nameCenter.x, nameCenter.y).y)
+  await expect(page.getByRole('button', { name: 'Xóa lớp' })).toBeVisible()
+  const right = NAME_TEXT.x + NAME_TEXT.w
+  await drag(page, at(right, nameCenter.y), at(right + 5, nameCenter.y))
+  const text = await savedLayer(page, 1)
+  expect(Math.abs(text.w - (NAME_TEXT.w + 5))).toBeLessThanOrEqual(0.3)
+  expect(text.props.size).toBe(16)
+})
+
+test('dragging the rotation handle rotates 90° around the centre', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop', 'chỉ desktop')
+  const { at } = await cardToPage(page)
+  await page.mouse.click(at(nameCenter.x, nameCenter.y).x, at(nameCenter.x, nameCenter.y).y)
+  await expect(page.getByRole('button', { name: 'Xóa lớp' })).toBeVisible()
+  // tay xoay của Konva Transformer: giữa cạnh trên, cao hơn 50 px (rotateAnchorOffset mặc định)
+  const top = at(nameCenter.x, NAME_TEXT.y)
+  const c = at(nameCenter.x, nameCenter.y)
+  await drag(page, { x: top.x, y: top.y - 50 }, { x: c.x + 80, y: c.y })
+  const text = await savedLayer(page, 1)
+  expect(text.rotation).toBe(90)
+  // xoay 90° quanh góc trên trái (x,y): tâm hình = (x - h/2, y + w/2)
+  expect(Math.abs(text.x - text.h / 2 - nameCenter.x)).toBeLessThanOrEqual(0.5)
+  expect(Math.abs(text.y + text.w / 2 - nameCenter.y)).toBeLessThanOrEqual(0.5)
+})
+
+test('dropping an image file on the card adds an image layer and stays in the editor', async ({ page }) => {
+  const b64 = (await makePhoto(page, 400, 300)).toString('base64')
+  const dt = await page.evaluateHandle((b64) => {
+    const bin = atob(b64)
+    const bytes = new Uint8Array(bin.length)
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
+    const dt = new DataTransfer()
+    dt.items.add(new File([bytes], 'photo.jpg', { type: 'image/jpeg' }))
+    return dt
+  }, b64)
+  const canvas = page.getByTestId('card-canvas')
+  await canvas.dispatchEvent('dragover', { dataTransfer: dt })
+  await canvas.dispatchEvent('drop', { dataTransfer: dt })
+  await expect
+    .poll(async () => {
+      const layers = (await readDesign(page))?.front.layers ?? []
+      return [layers.length, layers[2]?.type, Boolean(layers[2]?.props.assetId)]
+    }, { timeout: 10_000 })
+    .toEqual([3, 'image', true])
+  await expect(page).toHaveURL(/\/editor$/)
 })

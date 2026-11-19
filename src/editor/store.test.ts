@@ -183,6 +183,23 @@ describe('autosave', () => {
     warn.mockRestore()
   })
 
+  it('visibilitychange to hidden flushes a pending save', () => {
+    s().addLayer(createTextLayer())
+    const vis = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden')
+    document.dispatchEvent(new Event('visibilitychange'))
+    vis.mockRestore()
+    expect(localStorage.getItem(STORAGE_KEY)).not.toBeNull()
+    expect(s().saveState).toBe('saved')
+  })
+
+  it('visibilitychange to visible does not write', () => {
+    s().addLayer(createTextLayer())
+    const vis = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible')
+    document.dispatchEvent(new Event('visibilitychange'))
+    vis.mockRestore()
+    expect(localStorage.getItem(STORAGE_KEY)).toBeNull()
+  })
+
   it('pagehide flushes the save', () => {
     s().addLayer(createTextLayer())
     window.dispatchEvent(new Event('pagehide'))

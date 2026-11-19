@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { coverCrop, ptToMm, roundMm } from './geometry'
+import { clampToBleed, coverCrop, ptToMm, roundMm } from './geometry'
 
 describe('ptToMm', () => {
   it('converts points to millimetres', () => {
@@ -26,5 +26,20 @@ describe('coverCrop', () => {
   })
   it('uses the full image when ratios match', () => {
     expect(coverCrop(610, 910, 61, 91)).toEqual({ x: 0, y: 0, width: 610, height: 910 })
+  })
+})
+
+describe('clampToBleed', () => {
+  // vùng bleed: 61×91 mm từ (-3,-3); phải còn ít nhất 2 mm của hộp nằm trong
+  it('leaves a box inside the bleed untouched', () => {
+    expect(clampToBleed({ x: 7.5, y: 70, w: 40, h: 10 })).toEqual({ x: 7.5, y: 70 })
+  })
+
+  it('pulls a box dragged past the right/bottom edge back so 2 mm stay inside', () => {
+    expect(clampToBleed({ x: 80, y: 120, w: 40, h: 10 })).toEqual({ x: 56, y: 86 })
+  })
+
+  it('pulls a box dragged past the left/top edge back so 2 mm stay inside', () => {
+    expect(clampToBleed({ x: -100, y: -50, w: 40, h: 10 })).toEqual({ x: -41, y: -11 })
   })
 })
