@@ -220,4 +220,28 @@ describe('initial load', () => {
     expect(st.dirty).toBe(false)
     expect(st.saveState).toBe('saved')
   })
+
+  it('restored design that differs from its preset starts dirty (preset switch must confirm)', async () => {
+    const saved = loadPresetDesign('photocard-basic')
+    const text = saved.front.layers.find((l) => l.type === 'text')!
+    if (text.type === 'text') text.props.text = 'Jennie'
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: 1, design: saved }))
+    const st = (await freshStore()).useEditorStore.getState()
+    expect(st.dirty).toBe(true)
+    expect(st.saveState).toBe('saved')
+  })
+
+  it('restored design equal to a fresh preset copy (different layer ids, key order) is not dirty', async () => {
+    const saved = loadPresetDesign('polaroid-basic')
+    // id mới và thứ tự key khác vẫn coi là chưa chỉnh
+    const reordered = { ...saved, front: { layers: saved.front.layers.map((l) => ({ ...l, id: 'x-' + l.id })), background: saved.front.background } }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: 1, design: reordered }))
+    expect((await freshStore()).useEditorStore.getState().dirty).toBe(false)
+  })
+
+  it('restored design with an unknown presetId starts dirty', async () => {
+    const saved = { ...loadPresetDesign('polaroid-basic'), presetId: 'gone' }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: 1, design: saved }))
+    expect((await freshStore()).useEditorStore.getState().dirty).toBe(true)
+  })
 })

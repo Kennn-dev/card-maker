@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import type { CardDesign, Layer, SideName } from '@/model/card'
 import { isCardDesign } from '@/model/validate'
-import { loadPresetDesign } from '@/presets'
+import { loadPresetDesign, PRESETS } from '@/presets'
 
 export const STORAGE_KEY = 'icm:design:v1'
 const DEFAULT_PRESET = 'photocard-basic'
@@ -26,6 +26,34 @@ export type EditorState = {
   removeLayer(id: string): void
   undo(): void
   redo(): void
+}
+
+/** So sánh sâu, không phụ thuộc thứ tự key (design đọc từ JSON có thể khác thứ tự). */
+function deepEqual(a: unknown, b: unknown): boolean {
+  if (Object.is(a, b)) return true
+  if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false
+  if (Array.isArray(a) !== Array.isArray(b)) return false
+  const ka = Object.keys(a)
+  const kb = Object.keys(b)
+  if (ka.length !== kb.length) return false
+  return ka.every(
+    (k) => Object.hasOwn(b, k) && deepEqual((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k]),
+  )
+}
+
+function withoutLayerIds(design: CardDesign): unknown {
+  const strip = (side: CardDesign['front']) => ({
+    ...side,
+    layers: side.layers.map(({ id: _id, ...rest }) => rest),
+  })
+  return { ...design, front: strip(design.front), back: strip(design.back) }
+}
+
+/** Design đã khác bản gốc của preset chưa (bỏ qua id layer). Preset không còn tồn tại → coi là đã chỉnh. */
+export function differsFromPreset(design: CardDesign): boolean {
+  const preset = PRESETS.find((p) => p.id === design.presetId)
+  if (!preset) return true
+  return !deepEqual(withoutLayerIds(design), withoutLayerIds(preset.design))
 }
 
 function loadInitialDesign(): CardDesign {
@@ -90,11 +118,13 @@ function scheduleSave() {
 }
 
 function initialState() {
+  const design = loadInitialDesign()
   return {
-    design: loadInitialDesign(),
+    design,
     side: 'front' as SideName,
     selectedId: null as string | null,
-    dirty: false,
+    // Bài đã chỉnh từ phiên trước vẫn là "đã chỉnh": đổi mẫu phải hỏi (lịch sử undo không được lưu).
+    dirty: differsFromPreset(design),
     past: [] as CardDesign[],
     future: [] as CardDesign[],
     saveState: 'saved' as const,

@@ -39,11 +39,28 @@ async function drag(page: Page, from: { x: number; y: number }, to: { x: number;
   await page.mouse.up()
 }
 
+/** Chờ autosave ghi xong (trạng thái "Đã lưu" và đã có bản lưu), rồi đọc layer mặt trước. */
+async function waitForSave(page: Page): Promise<string> {
+  let raw: string | null = null
+  await expect
+    .poll(
+      async () => {
+        const [status, value] = await page.evaluate(
+          (key) => [document.querySelector('[role=status]')?.textContent ?? '', localStorage.getItem(key)] as const,
+          STORAGE_KEY,
+        )
+        raw = value
+        return status === 'Đã lưu' && value !== null
+      },
+      { message: 'design phải được lưu vào localStorage' },
+    )
+    .toBe(true)
+  return raw!
+}
+
 async function savedFrontLayers(page: Page): Promise<SavedLayer[]> {
-  await page.waitForTimeout(1100)
-  const raw = await page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY)
-  expect(raw, 'design phải được lưu vào localStorage').not.toBeNull()
-  return (JSON.parse(raw!) as { design: { front: { layers: SavedLayer[] } } }).design.front.layers
+  const raw = await waitForSave(page)
+  return (JSON.parse(raw) as { design: { front: { layers: SavedLayer[] } } }).design.front.layers
 }
 
 const nameCenter = { x: NAME_TEXT.x + NAME_TEXT.w / 2, y: NAME_TEXT.y + NAME_TEXT.h / 2 }
@@ -158,7 +175,7 @@ test('add text, edit content, persists after reload', async ({ page }) => {
   await page.getByLabel('Nội dung').fill('Jennie')
   await expect(page.getByText('Đang lưu…')).toBeVisible()
   await expect(page.getByText('Đã lưu')).toBeVisible()
-  await page.waitForTimeout(1100)
+  await expect.poll(async () => (await readDesign(page))?.front.layers.some((l) => l.props.text === 'Jennie')).toBe(true)
   await page.reload()
   await expect(page.getByTestId('card-canvas').locator('canvas').first()).toBeVisible()
   const design = await readDesign(page)
@@ -172,7 +189,9 @@ test('typing in an input does not delete or undo layers', async ({ page }) => {
   await input.fill('AB')
   await input.press('Backspace')
   await input.press('Control+z')
-  await expect(input).toHaveValue(/A/) // ô vẫn còn, layer vẫn được chọn
+  // Ctrl+Z trong ô là undo gốc của trình duyệt (khôi phục 'AB'), không phải undo của editor
+  // (editor sẽ trả về 'Nhập chữ' hoặc xóa layer). Ô vẫn còn, layer vẫn được chọn.
+  await expect(input).toHaveValue('AB')
   await expect(page.getByRole('button', { name: 'Xóa lớp' })).toBeVisible()
   await expect.poll(() => layerCount(page, 'front')).toBe(3)
 })
@@ -325,6 +344,24 @@ test('switching preset when dirty asks for confirmation', async ({ page }) => {
   // vẫn hoàn tác được
   await page.getByRole('button', { name: 'Hoàn tác' }).click()
   await expect.poll(async () => (await readDesign(page))?.presetId).toBe('photocard-basic')
+})
+
+test('after reload, an edited design still asks before switching preset', async ({ page }, testInfo) => {
+  await addText(page)
+  await page.getByLabel('Nội dung').fill('Jennie')
+  await expect.poll(async () => (await readDesign(page))?.front.layers.some((l) => l.props.text === 'Jennie')).toBe(true)
+  await page.reload()
+  await expect(page.getByTestId('card-canvas').locator('canvas').first()).toBeVisible()
+  if (testInfo.project.name === 'desktop') {
+    // đã chỉnh → không mở sẵn ngăn "Mẫu"
+    await expect(page.getByRole('button', { name: 'Mẫu', exact: true })).toHaveAttribute('aria-pressed', 'false')
+  }
+  await openDrawer(page, 'Mẫu')
+  await page.getByRole('button', { name: 'Polaroid cơ bản' }).click()
+  await expect(page.getByRole('alertdialog')).toBeVisible()
+  await page.getByRole('button', { name: 'Hủy' }).click()
+  await expect.poll(async () => (await readDesign(page))?.presetId).toBe('photocard-basic')
+  expect((await readDesign(page))!.front.layers.some((l) => l.props.text === 'Jennie')).toBe(true)
 })
 
 test('switching preset when not dirty applies immediately', async ({ page }) => {
